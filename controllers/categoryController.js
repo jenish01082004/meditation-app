@@ -9,6 +9,7 @@ exports.createCategory = async (req, res) => {
 
         if (!file) return res.status(400).json({ message: 'Image is required' });
 
+        // Upload image to Cloudinary
         const result = await cloudinary.uploader.upload(file.path);
 
         const category = await Category.create({
@@ -35,7 +36,8 @@ exports.updateCategory = async (req, res) => {
             updateData.image = result.secure_url;
         }
 
-        const category = await Category.findByIdAndUpdate(id, updateData, { new: true });
+        const category = await Category.findByIdAndUpdate(id, updateData, { new: true }).lean();
+        if (!category) return res.status(404).json({ message: 'Category not found' });
 
         res.json(category);
     } catch (err) {
@@ -48,10 +50,8 @@ exports.deleteCategory = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const category = await Category.findById(id);
+        const category = await Category.findByIdAndDelete(id).lean();
         if (!category) return res.status(404).json({ message: 'Category not found' });
-
-        await Category.findByIdAndDelete(id);
 
         res.json({ message: 'Category deleted successfully' });
     } catch (err) {
@@ -59,10 +59,12 @@ exports.deleteCategory = async (req, res) => {
     }
 };
 
-// Get all categories
+// Get all categories (optimized)
 exports.getAllCategories = async (req, res) => {
     try {
-        const categories = await Category.find().sort({ createdAt: -1 });
+        const categories = await Category.find({}, 'name image')
+            .sort({ createdAt: -1 })
+            .lean(); // faster, returns plain objects
         res.json(categories);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -73,7 +75,7 @@ exports.getAllCategories = async (req, res) => {
 exports.getCategoryById = async (req, res) => {
     try {
         const { id } = req.params;
-        const category = await Category.findById(id);
+        const category = await Category.findById(id, 'name image').lean();
         if (!category) return res.status(404).json({ message: 'Category not found' });
 
         res.json(category);

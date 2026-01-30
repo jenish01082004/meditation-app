@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+
+// Multer setup
 const upload = multer({ dest: 'uploads/' });
 
 const {
@@ -11,19 +13,11 @@ const {
     getCategoryById
 } = require('../controllers/categoryController');
 
-// Create category
+// Routes
 router.post('/', upload.single('image'), createCategory);
-
-// Update category
 router.put('/:id', upload.single('image'), updateCategory);
-
-// Delete category
 router.delete('/:id', deleteCategory);
-
-// Fetch all categories
 router.get('/', getAllCategories);
-
-// Fetch single category by ID
 router.get('/:id', getCategoryById);
 
 module.exports = router;
