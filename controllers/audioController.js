@@ -52,23 +52,31 @@ exports.deleteAudio = async (req, res) => {
     try {
 
         const { id } = req.params;
+
         const audio = await Audio.findById(id);
 
         if (!audio) {
             return res.status(404).json({ message: "Audio not found" });
         }
 
-        await cloudinary.uploader.destroy(audio.audio_public_id, {
-            resource_type: "video"
-        });
+        // Delete audio from Cloudinary
+        if (audio.audio_public_id) {
+            await cloudinary.uploader.destroy(audio.audio_public_id, {
+                resource_type: "video"
+            });
+        }
 
+        // Delete image
         if (audio.image_public_id) {
             await cloudinary.uploader.destroy(audio.image_public_id);
         }
 
-        await audio.deleteOne();
+        // Delete from MongoDB
+        await Audio.findByIdAndDelete(id);
 
-        res.json({ message: "Audio deleted successfully" });
+        res.json({
+            message: "Audio and image deleted successfully"
+        });
 
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -164,4 +172,32 @@ exports.fetchAudioByCategory = async (req, res) => {
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
+};
+
+exports.searchAudio = async (req, res) => {
+
+    try {
+
+        const { q } = req.query;
+
+        if (!q) {
+            return res.status(400).json({ message: "Search query required" });
+        }
+
+        const audios = await Audio.find({
+            title: { $regex: q, $options: "i" }
+        }).lean();
+
+        const result = audios.map(a => ({
+            ...a,
+            audioFile: `${process.env.AUDIO_BASE_URL}/${a.audioFile}`,
+            image: a.image ? `${process.env.IMAGE_BASE_URL}/${a.image}` : null
+        }));
+
+        res.json(result);
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+
 };
