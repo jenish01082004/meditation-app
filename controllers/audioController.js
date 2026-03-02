@@ -1,16 +1,18 @@
 const Audio = require('../models/Audio');
 const cloudinary = require('../utils/cloudinary');
-const path = require("path");
+const path = require('path');
 
+
+// CREATE AUDIO
 exports.createAudio = async (req, res) => {
     try {
-
         const { categoryId, title, description } = req.body;
+
         const audioFile = req.files?.audio?.[0];
         const imageFile = req.files?.image?.[0];
 
         if (!audioFile) {
-            return res.status(400).json({ message: "Audio required" });
+            return res.status(400).json({ message: "Audio file required" });
         }
 
         const audioResult = await cloudinary.uploader.upload(audioFile.path, {
@@ -31,7 +33,9 @@ exports.createAudio = async (req, res) => {
             title,
             description,
             audioFile: audioFileName,
-            image: imageFileName
+            audio_public_id: audioResult.public_id,
+            image: imageFileName || undefined,
+            image_public_id: imageResult ? imageResult.public_id : undefined
         });
 
         res.status(201).json(audio);
@@ -46,20 +50,18 @@ exports.createAudio = async (req, res) => {
 // DELETE AUDIO
 exports.deleteAudio = async (req, res) => {
     try {
-        const { id } = req.params;
 
+        const { id } = req.params;
         const audio = await Audio.findById(id);
 
         if (!audio) {
             return res.status(404).json({ message: "Audio not found" });
         }
 
-        // Delete audio from Cloudinary
         await cloudinary.uploader.destroy(audio.audio_public_id, {
             resource_type: "video"
         });
 
-        // Delete image if exists
         if (audio.image_public_id) {
             await cloudinary.uploader.destroy(audio.image_public_id);
         }
@@ -94,7 +96,6 @@ exports.updateAudio = async (req, res) => {
         const imageFile = req.files?.image?.[0];
 
 
-        // Update audio file
         if (audioFile) {
 
             await cloudinary.uploader.destroy(audio.audio_public_id, {
@@ -105,12 +106,11 @@ exports.updateAudio = async (req, res) => {
                 resource_type: "video"
             });
 
-            updateData.audioFile = audioResult.secure_url;
+            updateData.audioFile = path.basename(audioResult.secure_url);
             updateData.audio_public_id = audioResult.public_id;
         }
 
 
-        // Update image
         if (imageFile) {
 
             if (audio.image_public_id) {
@@ -119,7 +119,7 @@ exports.updateAudio = async (req, res) => {
 
             const imageResult = await cloudinary.uploader.upload(imageFile.path);
 
-            updateData.image = imageResult.secure_url;
+            updateData.image = path.basename(imageResult.secure_url);
             updateData.image_public_id = imageResult.public_id;
         }
 
@@ -141,18 +141,22 @@ exports.updateAudio = async (req, res) => {
 
 // FETCH AUDIO BY CATEGORY
 exports.fetchAudioByCategory = async (req, res) => {
-
     try {
 
-        const audios = await Audio.find({ categoryId: req.params.categoryId }).lean();
+        const { categoryId } = req.params;
 
-        const BASE_URL = process.env.BASE_URL;
-        const IMAGE_BASE_URL = process.env.IMAGE_BASE_URL;
+        if (!categoryId) {
+            return res.status(400).json({ message: "Category ID required" });
+        }
+
+        const audios = await Audio.find({ categoryId })
+            .sort({ createdAt: -1 })
+            .lean();
 
         const result = audios.map(a => ({
             ...a,
-            audioFile: `${BASE_URL}/${a.audioFile}`,
-            image: a.image ? `${IMAGE_BASE_URL}/${a.image}` : null
+            audioFile: `${process.env.AUDIO_BASE_URL}/${a.audioFile}`,
+            image: a.image ? `${process.env.IMAGE_BASE_URL}/${a.image}` : null
         }));
 
         res.json(result);
