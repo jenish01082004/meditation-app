@@ -1,20 +1,18 @@
 const Audio = require('../models/Audio');
 const cloudinary = require('../utils/cloudinary');
+const path = require("path");
 
-
-// CREATE AUDIO
 exports.createAudio = async (req, res) => {
     try {
-        const { categoryId, title, description } = req.body;
 
+        const { categoryId, title, description } = req.body;
         const audioFile = req.files?.audio?.[0];
         const imageFile = req.files?.image?.[0];
 
         if (!audioFile) {
-            return res.status(400).json({ message: "Audio file required" });
+            return res.status(400).json({ message: "Audio required" });
         }
 
-        // Upload audio
         const audioResult = await cloudinary.uploader.upload(audioFile.path, {
             resource_type: "video"
         });
@@ -25,14 +23,15 @@ exports.createAudio = async (req, res) => {
             imageResult = await cloudinary.uploader.upload(imageFile.path);
         }
 
+        const audioFileName = path.basename(audioResult.secure_url);
+        const imageFileName = imageResult ? path.basename(imageResult.secure_url) : null;
+
         const audio = await Audio.create({
             categoryId,
             title,
             description,
-            audioFile: audioResult.secure_url,
-            audio_public_id: audioResult.public_id,
-            image: imageResult ? imageResult.secure_url : undefined,
-            image_public_id: imageResult ? imageResult.public_id : undefined
+            audioFile: audioFileName,
+            image: imageFileName
         });
 
         res.status(201).json(audio);
@@ -142,18 +141,21 @@ exports.updateAudio = async (req, res) => {
 
 // FETCH AUDIO BY CATEGORY
 exports.fetchAudioByCategory = async (req, res) => {
+
     try {
 
-        const { categoryId } = req.params;
+        const audios = await Audio.find({ categoryId: req.params.categoryId }).lean();
 
-        if (!categoryId) {
-            return res.status(400).json({ message: "Category ID required" });
-        }
+        const BASE_URL = process.env.BASE_URL;
+        const IMAGE_BASE_URL = process.env.IMAGE_BASE_URL;
 
-        const audios = await Audio.find({ categoryId })
-            .sort({ createdAt: -1 });
+        const result = audios.map(a => ({
+            ...a,
+            audioFile: `${BASE_URL}/${a.audioFile}`,
+            image: a.image ? `${IMAGE_BASE_URL}/${a.image}` : null
+        }));
 
-        res.json(audios);
+        res.json(result);
 
     } catch (err) {
         res.status(500).json({ message: err.message });
