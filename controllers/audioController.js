@@ -174,19 +174,27 @@ exports.fetchAudioByCategory = async (req, res) => {
     }
 };
 
-exports.searchAudio = async (req, res) => {
-
+// FETCH AUDIO BY CATEGORY + SEARCH
+exports.fetchAudioByCategory = async (req, res) => {
     try {
 
-        const { q } = req.query;
+        const { categoryId } = req.params;
+        const { search } = req.query;
 
-        if (!q) {
-            return res.status(400).json({ message: "Search query required" });
+        if (!categoryId) {
+            return res.status(400).json({ message: "Category ID required" });
         }
 
-        const audios = await Audio.find({
-            title: { $regex: q, $options: "i" }
-        }).lean();
+        let query = { categoryId };
+
+        // Search logic
+        if (search) {
+            query.title = { $regex: search, $options: "i" }; // case insensitive
+        }
+
+        const audios = await Audio.find(query)
+            .sort({ createdAt: -1 })
+            .lean();
 
         const result = audios.map(a => ({
             ...a,
@@ -199,5 +207,4 @@ exports.searchAudio = async (req, res) => {
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
-
 };
